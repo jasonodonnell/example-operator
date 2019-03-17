@@ -1,0 +1,7 @@
+apiVersion: pgcluster.wizard.io/v1alpha1
+kind: PGCluster
+metadata:
+  name: example-pgcluster
+spec:
+  # Add fields here
+  size: 3
