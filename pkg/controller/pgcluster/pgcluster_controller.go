@@ -2,6 +2,7 @@ package pgcluster
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	pgclusterv1alpha1 "github.com/jasonodonnell/example-operator/pkg/apis/pgcluster/v1alpha1"
@@ -9,13 +10,11 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -80,11 +79,6 @@ type ReconcilePGCluster struct {
 
 // Reconcile reads that state of the cluster for a PGCluster object and makes changes based on the state read
 // and what is in the PGCluster.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  This example creates
-// a Pod as an example
-// Note:
-// The Controller will requeue the Request to be processed again if the returned error is non-nil or
-// Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcilePGCluster) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling PGCluster")
@@ -103,9 +97,32 @@ func (r *ReconcilePGCluster) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, err
 	}
 
+	fmt.Println(pgcluster)
+	if err := pgcluster.Validate(); err != nil {
+		reqLogger.Error(err, "PGCluster request invalid")
+		return reconcile.Result{}, err
+	}
+
+	serviceFound := &corev1.Service{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pgcluster.Name, Namespace: pgcluster.Namespace}, serviceFound)
+	if err != nil && errors.IsNotFound(err) {
+		// Define a new service
+		service := r.newServiceForPGCluster(pgcluster)
+		reqLogger.Info("Creating a new service", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
+		err = r.client.Create(context.TODO(), service)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new service", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{Requeue: true}, nil
+	} else if err != nil {
+		reqLogger.Error(err, "Failed to get SERVICE")
+		return reconcile.Result{}, err
+	}
+
 	// Check if the deployment already exists, if not create a new one
-	found := &appsv1.Deployment{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pgcluster.Name, Namespace: pgcluster.Namespace}, found)
+	deploymentFound := &appsv1.Deployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pgcluster.Name, Namespace: pgcluster.Namespace}, deploymentFound)
 	if err != nil && errors.IsNotFound(err) {
 		// Define a new deployment
 		dep := r.newDeploymentForPGCluster(pgcluster)
@@ -123,12 +140,12 @@ func (r *ReconcilePGCluster) Reconcile(request reconcile.Request) (reconcile.Res
 	}
 
 	// Ensure the deployment size is the same as the spec
-	size := pgcluster.Spec.Size
-	if *found.Spec.Replicas != size {
-		found.Spec.Replicas = &size
-		err = r.client.Update(context.TODO(), found)
+	size := int32(1)
+	if *deploymentFound.Spec.Replicas != size {
+		deploymentFound.Spec.Replicas = &size
+		err = r.client.Update(context.TODO(), deploymentFound)
 		if err != nil {
-			reqLogger.Error(err, "Failed to update Deployment", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+			reqLogger.Error(err, "Failed to update Deployment", "Deployment.Namespace", deploymentFound.Namespace, "Deployment.Name", deploymentFound.Name)
 			return reconcile.Result{}, err
 		}
 		// Spec updated - return and requeue
@@ -158,54 +175,6 @@ func (r *ReconcilePGCluster) Reconcile(request reconcile.Request) (reconcile.Res
 	}
 
 	return reconcile.Result{}, nil
-}
-
-func (r *ReconcilePGCluster) newDeploymentForPGCluster(cr *pgclusterv1alpha1.PGCluster) *appsv1.Deployment {
-	replicas := cr.Spec.Size
-	ls := labelsForPGCluster(cr.Name)
-
-	dep := &appsv1.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name,
-			Namespace: cr.Namespace,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: ls,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: ls,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "web",
-							Image: "nginx:1.12",
-							Ports: []corev1.ContainerPort{
-								{
-									Name:          "http",
-									Protocol:      corev1.ProtocolTCP,
-									ContainerPort: 80,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	controllerutil.SetControllerReference(cr, dep, r.scheme)
-	return dep
-}
-
-func labelsForPGCluster(name string) map[string]string {
-	return map[string]string{"app": "postgres", "pgcluster_cr": name}
 }
 
 // getPodNames returns the pod names of the array of pods passed in

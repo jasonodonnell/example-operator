@@ -1,7 +1,24 @@
+---
 apiVersion: pgcluster.wizard.io/v1alpha1
 kind: PGCluster
 metadata:
-  name: example-pgcluster
+  name: example-pgcluster-primary
 spec:
-  # Add fields here
-  size: 3
+  database: "userdb"
+  imageTag: "centos7-11.2-2.3.1"
+  mode: "primary"
+  username: "testuser"
+---
+apiVersion: pgcluster.wizard.io/v1alpha1
+kind: PGCluster
+metadata:
+  name: example-pgcluster-replica
+spec:
+  database: "userdb"
+  imageTag: "centos7-11.2-2.3.1"
+  mode: "replica"
+  primaryHost: "example-pgcluster-primary"
+  primaryPort: "5432"
+  replicationUser: "replication"
+  replicationPassword: "password"
+  username: "testuser"

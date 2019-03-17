@@ -20,7 +20,7 @@ ifndef QUAY_PASSWORD
         $(error QUAY_USERNAME is not defined)
 endif
 
-build:
+build: update-crds
 	@$(SDK_BIN) build $(OPERATOR_IMAGE) --docker-build-args='--no-cache'
 
 clean:
@@ -37,7 +37,6 @@ deploy: clean
 	@$(KUBE_BIN) create -f deploy/role_binding.yaml
 	@$(KUBE_BIN) create -f deploy/crds/pgcluster_v1alpha1_pgcluster_crd.yaml
 	@$(KUBE_BIN) create -f deploy/operator.yaml
-	sleep 10
 	@$(KUBE_BIN) create -f deploy/crds/pgcluster_v1alpha1_pgcluster_cr.yaml
 
 quay-login: env-check
@@ -45,3 +44,6 @@ quay-login: env-check
 
 push: quay-login
 	@$(DOCKER_BIN) push $(OPERATOR_IMAGE)
+
+update-crds:
+	@$(SDK_BIN) generate k8s

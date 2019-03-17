@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"errors"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -10,7 +12,14 @@ import (
 // PGClusterSpec defines the desired state of PGCluster
 // +k8s:openapi-gen=true
 type PGClusterSpec struct {
-	Size int32 `json:"size"`
+	Database            string `json:"database"`
+	ImageTag            string `json:"imageTag"`
+	Mode                string `json:"mode"`
+	PrimaryHost         string `json:"primaryHost"`
+	PrimaryPort         string `json:"primaryPort"`
+	ReplicationUser     string `json:"replicationUser"`
+	ReplicationPassword string `json:"replicationPassword"`
+	Username            string `json:"username"`
 }
 
 // PGClusterStatus defines the observed state of PGCluster
@@ -42,4 +51,39 @@ type PGClusterList struct {
 
 func init() {
 	SchemeBuilder.Register(&PGCluster{}, &PGClusterList{})
+}
+
+// Validate checks if PGCluster request is valid.
+func (pg *PGCluster) Validate() error {
+	if pg.Spec.ImageTag == "" {
+		return errors.New("image tag not specified in spec")
+	}
+
+	if pg.Spec.Database == "" {
+		return errors.New("database not specified in spec")
+	}
+
+	if pg.Spec.Mode != "primary" && pg.Spec.Mode != "replica" {
+		return errors.New("postgres mode (primary or replica) must be specified in spec")
+	}
+
+	if pg.Spec.Mode == "replica" {
+		if pg.Spec.PrimaryHost == "" {
+			return errors.New("primary hostname must be specified to create a replica")
+		}
+
+		if pg.Spec.PrimaryPort == "" {
+			return errors.New("primary port must be specified to create a replica")
+		}
+
+		if pg.Spec.ReplicationUser == "" {
+			return errors.New("replication user must be specified to create a replica")
+		}
+
+		if pg.Spec.ReplicationPassword == "" {
+			return errors.New("replication password must be specified to create a replica")
+		}
+	}
+
+	return nil
 }
