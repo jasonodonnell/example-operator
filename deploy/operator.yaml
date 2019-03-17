@@ -16,7 +16,7 @@ spec:
       containers:
         - name: example-operator
           # Replace this with the built image name
-          image: quay.io/drlovewizard/example-operator
+          image: quay.io/drlovewizard/example-operator:v0.0.1
           command:
           - example-operator
           imagePullPolicy: Always
