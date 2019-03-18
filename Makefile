@@ -17,7 +17,7 @@ ifndef QUAY_USERNAME
         $(error QUAY_USERNAME is not defined)
 endif
 ifndef QUAY_PASSWORD
-        $(error QUAY_USERNAME is not defined)
+        $(error QUAY_PASSWORD is not defined)
 endif
 
 build: update-crds

@@ -2,7 +2,6 @@ package pgcluster
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	pgclusterv1alpha1 "github.com/jasonodonnell/example-operator/pkg/apis/pgcluster/v1alpha1"
@@ -97,7 +96,6 @@ func (r *ReconcilePGCluster) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, err
 	}
 
-	fmt.Println(pgcluster)
 	if err := pgcluster.Validate(); err != nil {
 		reqLogger.Error(err, "PGCluster request invalid")
 		return reconcile.Result{}, err
